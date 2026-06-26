@@ -3,6 +3,7 @@ import json
 import mimetypes
 import gradio as gr
 from openai import OpenAI
+from pypdf import PdfReader
 
 with open("config.json") as f:
     config = json.load(f)
@@ -25,24 +26,41 @@ assistant = client.beta.assistants.create(
 )
 
 
-def upload_file(path):
+def extract_text_from_file(path):
     ext = os.path.splitext(path)[1].lower()
+    name = os.path.basename(path)
+    try:
+        if ext == ".pdf":
+            reader = PdfReader(path)
+            pages = [page.extract_text() or "" for page in reader.pages]
+            raw = "\n\n".join(pages).strip()
+        else:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                raw = f.read().strip()
+        return f'[Contents of "{name}"]\n{raw}'
+    except Exception:
+        return None
+
+
+def upload_image(path):
     mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
     with open(path, "rb") as f:
-        response = client.files.create(file=(os.path.basename(path), f, mime), purpose="assistants")
-    return response.id, ext
+        response = client.files.create(file=(os.path.basename(path), f, mime), purpose="vision")
+    return response.id
 
 
 def build_user_content(text, file_paths):
     content = []
-    attachments = []
 
     for path in file_paths:
-        file_id, ext = upload_file(path)
+        ext = os.path.splitext(path)[1].lower()
         if ext in IMAGE_TYPES:
+            file_id = upload_image(path)
             content.append({"type": "image_file", "image_file": {"file_id": file_id}})
         else:
-            attachments.append({"file_id": file_id, "tools": [{"type": "file_search"}]})
+            extracted = extract_text_from_file(path)
+            if extracted:
+                content.append({"type": "text", "text": extracted})
 
     if text:
         content.append({"type": "text", "text": text})
@@ -50,7 +68,7 @@ def build_user_content(text, file_paths):
     if not content:
         content.append({"type": "text", "text": "(file uploaded)"})
 
-    return content, attachments
+    return content
 
 
 def respond(message, chat_history, thread_id):
@@ -68,13 +86,13 @@ def respond(message, chat_history, thread_id):
         thread = client.beta.threads.create()
         thread_id = thread.id
 
-    content, attachments = build_user_content(text, files)
+    content = build_user_content(text, files)
 
-    msg_kwargs = {"thread_id": thread_id, "role": "user", "content": content}
-    if attachments:
-        msg_kwargs["attachments"] = attachments
-
-    client.beta.threads.messages.create(**msg_kwargs)
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=content,
+    )
 
     run = client.beta.threads.runs.create_and_poll(
         thread_id=thread_id,
