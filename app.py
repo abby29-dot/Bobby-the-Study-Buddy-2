@@ -94,7 +94,8 @@ def respond(message, chat_history, thread_id):
 
     display_user = text if text else f"📎 {len(files)} file(s) uploaded"
     chat_history = chat_history + [
-        (display_user, response_text),
+        {"role": "user", "content": display_user},
+        {"role": "assistant", "content": response_text},
     ]
 
     return gr.MultimodalTextbox(value=None), chat_history, thread_id
