@@ -67,12 +67,20 @@ def chat(message, history):
         if isinstance(entry, dict):
             role = entry.get("role")
             raw = entry.get("content")
-            if role in ("user", "assistant") and raw:
-                client.beta.threads.messages.create(
-                    thread_id=thread.id,
-                    role=role,
-                    content=str(raw) if not isinstance(raw, list) else raw,
-                )
+            if role not in ("user", "assistant") or not raw:
+                continue
+            if isinstance(raw, list):
+                safe = [b for b in raw if isinstance(b, dict) and b.get("type") in ("text", "image_file", "image_url")]
+                if not safe:
+                    continue
+                content = safe
+            else:
+                content = str(raw)
+            client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role=role,
+                content=content,
+            )
         else:
             user_msg, assistant_msg = entry
             if user_msg:
