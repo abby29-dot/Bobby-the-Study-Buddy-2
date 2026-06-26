@@ -69,7 +69,6 @@ demo = gr.ChatInterface(
         "What is photosynthesis?",
         "How do I solve 12 + 7?",
     ],
-    theme=gr.themes.Soft(),
 )
 
 if __name__ == "__main__":
