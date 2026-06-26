@@ -24,18 +24,29 @@ assistant = client.beta.assistants.create(
 def chat(message, history):
     thread = client.beta.threads.create()
 
-    for user_msg, assistant_msg in history:
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=user_msg,
-        )
-        if assistant_msg:
+    for entry in history:
+        if isinstance(entry, dict):
+            role = entry.get("role")
+            content = entry.get("content")
+            if role in ("user", "assistant") and content:
+                client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role=role,
+                    content=content,
+                )
+        else:
+            user_msg, assistant_msg = entry
             client.beta.threads.messages.create(
                 thread_id=thread.id,
-                role="assistant",
-                content=assistant_msg,
+                role="user",
+                content=user_msg,
             )
+            if assistant_msg:
+                client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="assistant",
+                    content=assistant_msg,
+                )
 
     client.beta.threads.messages.create(
         thread_id=thread.id,
